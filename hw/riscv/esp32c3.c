@@ -296,7 +296,7 @@ static void esp32c3_load_firmware(MachineState *machine)
                         EM_RISCV, 1, 0, NULL, false, NULL);
 
         /* On failure, riscv_load_kernel exits the program */
-        printf("Loading kernel at address 0x%lx\n", elf_entry);
+        qemu_log("Loading kernel at address 0x%08" PRIx64 "\n", elf_entry);
         riscv_load_kernel(machine, &hart, elf_entry, false, NULL);
         if (elf_entry != ESP32C3_RESET_ADDRESS) {
             qdev_prop_set_uint64(DEVICE(&ms->soc), "resetvec", elf_entry);

@@ -88,13 +88,31 @@ jobs:
             run_configure: "./.github/workflows/scripts/configure-macos.sh"
 
     runs-on: ${{ matrix.runs_on }}
-    container: ${{ matrix.container }}
+    container:
+        image: ${{ matrix.container }}
+        # See "Install Nodejs 20 for Glibc 2.17" step below for explanation
+        volumes:
+          - ${{ matrix.platform == 'x86_64-linux-gnu' && '/node20217:/node20217:rw,rshared' || ' ' }}
+          - ${{ matrix.platform == 'x86_64-linux-gnu' && '/node20217:/__e/node20:ro,rshared' || ' ' }}
     defaults:
       run:
         shell: ${{ matrix.shell }}
 
     steps:
-      - uses: actions/checkout@v3
+      # Just for x86_64-linux-gnu, we need to install a custom copy of Nodejs
+      # compatible with an old version of Glibc in the Ubuntu 18 container.
+      # See https://github.com/mesonbuild/meson/pull/13996/,
+      # https://github.com/actions/checkout/issues/1809,
+      # https://github.com/actions/runner/issues/3373
+      - name: Install Nodejs 20 for Glibc 2.17
+        if: ${{ matrix.platform == 'x86_64-linux-gnu' }}
+        run: |
+          apt-get update -y -q && apt-get install curl ca-certificates xz-utils -y -q --no-install-recommends
+          curl -LO https://unofficial-builds.nodejs.org/download/release/v20.9.0/node-v20.9.0-linux-x64-glibc-217.tar.xz
+          tar -xf node-v20.9.0-linux-x64-glibc-217.tar.xz --strip-components 1 -C /node20217
+          ldd /__e/node20/bin/node
+
+      - uses: actions/checkout@v4
 
       - name: Install prerequisites (${{ matrix.target }} @ ${{ matrix.platform }})
         if : ${{ matrix.platform != 'x86_64-w64-mingw32' }}

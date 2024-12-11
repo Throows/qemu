@@ -50,42 +50,47 @@ jobs:
       fail-fast: false
       matrix:
         # Naming MinGW platforms: https://sourceforge.net/p/mingw-w64/wiki2/TypeTriplets/
-        platform: [x86_64-linux-gnu, aarch64-linux-gnu, x86_64-w64-mingw32, x86_64-apple-darwin, aarch64-apple-darwin]
+        platform:
+          # - x86_64-linux-gnu
+          # - aarch64-linux-gnu
+          - x86_64-w64-mingw32
+          # - x86_64-apple-darwin
+          # - aarch64-apple-darwin
         target: [xtensa-softmmu, riscv32-softmmu]
 
         include:
-          - platform: x86_64-linux-gnu
-            runs_on: ubuntu-20.04
-            # Used minimal build deps
-            container: ubuntu:18.04
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-old.sh"
-            run_configure: "./.github/workflows/scripts/configure-native.sh"
+          # - platform: x86_64-linux-gnu
+          #   runs_on: ubuntu-20.04
+          #   # Used minimal build deps
+          #   container: ubuntu:18.04
+          #   shell: bash -e {0}
+          #   run_prerequisites: "./.github/workflows/scripts/prerequisites-old.sh"
+          #   run_configure: "./.github/workflows/scripts/configure-native.sh"
 
-          - platform: aarch64-linux-gnu
-            runs_on: ubuntu-20.04
-            # Used the minimal docker-hub's image instead of the heavy GitHub's one for correct croossbuild prerequisites
-            container: ubuntu:20.04
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-cross-linux-arm64.sh"
-            run_configure: "./.github/workflows/scripts/configure-cross-linux-arm64.sh"
+          # - platform: aarch64-linux-gnu
+          #   runs_on: ubuntu-20.04
+          #   # Used the minimal docker-hub's image instead of the heavy GitHub's one for correct croossbuild prerequisites
+          #   container: ubuntu:20.04
+          #   shell: bash -e {0}
+          #   run_prerequisites: "./.github/workflows/scripts/prerequisites-cross-linux-arm64.sh"
+          #   run_configure: "./.github/workflows/scripts/configure-cross-linux-arm64.sh"
 
           - platform: x86_64-w64-mingw32
             runs_on: windows-2022
             shell: msys2 {0}
             run_configure: "./.github/workflows/scripts/configure-win.sh"
 
-          - platform: x86_64-apple-darwin
-            runs_on: macos-13
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-macos.sh"
-            run_configure: "./.github/workflows/scripts/configure-macos.sh"
+          # - platform: x86_64-apple-darwin
+          #   runs_on: macos-13
+          #   shell: bash -e {0}
+          #   run_prerequisites: "./.github/workflows/scripts/prerequisites-macos.sh"
+          #   run_configure: "./.github/workflows/scripts/configure-macos.sh"
 
-          - platform: aarch64-apple-darwin
-            runs_on: macos-13-xlarge
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-macos.sh"
-            run_configure: "./.github/workflows/scripts/configure-macos.sh"
+          # - platform: aarch64-apple-darwin
+          #   runs_on: macos-13-xlarge
+          #   shell: bash -e {0}
+          #   run_prerequisites: "./.github/workflows/scripts/prerequisites-macos.sh"
+          #   run_configure: "./.github/workflows/scripts/configure-macos.sh"
 
     runs-on: ${{ matrix.runs_on }}
     container:
@@ -164,6 +169,13 @@ jobs:
           ARCHIVE_NAME=${PROJECT_NAME}-${TARGET}-${VERSION}-${PLATFORM}.tar.xz
           tar -cJvf ${DIST_DIR}/${ARCHIVE_NAME} qemu > ${DIST_DIR}/dist-filelist-${TARGET}-${PLATFORM}.txt 2>&1
           echo "${ARCHIVE_NAME}" > ${DIST_DIR}/file_${PLATFORM}_${TARGET}
+
+      - name: Save build/build.ninja for failed builds
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-ninja-${{ matrix.target }}-${{ matrix.platform }}
+          path: build/build.ninja
 
       - name: Dist filelist (dbg) (${{ matrix.target }} @ ${{ matrix.platform }})
         uses: actions/upload-artifact@v4

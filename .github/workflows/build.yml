@@ -148,22 +148,21 @@ jobs:
           echo "${ARCHIVE_NAME}" > ${DIST_DIR}/file_${PLATFORM}_${TARGET}
 
       - name: Dist filelist (dbg) (${{ matrix.target }} @ ${{ matrix.platform }})
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dist-filelist-${{ matrix.target }}-${{ matrix.platform }}
           path: |
             dist/dist-filelist-*
 
       - name: Dist artifacts (${{ matrix.target }} @ ${{ matrix.platform }})
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          # TODO split artifacts for tests
-          name: dist-qemu
+          name: dist-qemu-${{ matrix.target }}-${{ matrix.platform }}
           path: |
             dist
 
   Upload:
-    if: startsWith(github.ref, 'refs/tags/')
+    # if: startsWith(github.ref, 'refs/tags/')
     needs: [ Vars, Build ]
     runs-on: ubuntu-latest
     steps :
@@ -189,15 +188,16 @@ jobs:
           ls -l
 
       - name: Source filelist (dbg)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: src-filelist
           path: |
             src-filelist.txt
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
-          name: dist-qemu
+          name: dist-qemu-*
+          path: dist
 
       - name: Create a checksum file
         env:

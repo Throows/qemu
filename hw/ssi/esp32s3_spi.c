@@ -99,14 +99,27 @@ static uint64_t esp32s3_spi_read(void *opaque, hwaddr addr, unsigned int size)
         case A_SPI_MEM_RD_STATUS:
             r = s->mem_rd_st;
             break;
+        case A_SPI_MEM_MISC:
+            r = s->misc;
+            break;
+        case A_SPI_MEM_CACHE_FCTRL:
+            r = s->cache_fctrl;
+            break;
+        case A_SPI_MEM_FSM:
+            r = s->fsm;
+            break;
         case A_SPI_MEM_W0...A_SPI_MEM_W15:
             r = s->data_reg[(addr - A_SPI_MEM_W0) / sizeof(uint32_t)];
             break;
         case A_SPI_MEM_SUS_STATUS:
             r = s->mem_sus_st;
             break;
-        case A_SPI_MEM_MISC:
-            r = s->misc;
+        case A_SPI_MEM_DDR_CTRL:
+            r = s->ddr_ctrl;
+            break;
+        case A_SPI_MEM_CLOCK_GATE:
+            r = s->clock_gate;
+            break;
         default:
 #if SPI1_WARNING
             warn_report("[SPI1] Unsupported read to 0x%lx", addr);
@@ -407,14 +420,23 @@ static void esp32s3_spi_write(void *opaque, hwaddr addr,
         case A_SPI_MEM_RD_STATUS:
             s->mem_rd_st = wvalue;
             break;
+        case A_SPI_MEM_MISC:
+            s->misc = wvalue;
+            break;
+        case A_SPI_MEM_CACHE_FCTRL:
+            s->cache_fctrl = wvalue;
+            break;
         case A_SPI_MEM_W0...A_SPI_MEM_W15:
             s->data_reg[(addr - A_SPI_MEM_W0) / sizeof(uint32_t)] = wvalue;
             break;
         case A_SPI_MEM_SUS_STATUS:
             s->mem_sus_st = wvalue;
             break;
-        case A_SPI_MEM_MISC:
-            s->misc = value;
+        case A_SPI_MEM_DDR_CTRL:
+            s->ddr_ctrl = wvalue;
+            break;
+        case A_SPI_MEM_CLOCK_GATE:
+            s->clock_gate = wvalue;
             break;
         default:
 #if SPI1_WARNING
@@ -422,7 +444,6 @@ static void esp32s3_spi_write(void *opaque, hwaddr addr,
 #endif
             break;
     }
-
 }
 
 

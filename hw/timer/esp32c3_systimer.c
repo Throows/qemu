@@ -20,13 +20,20 @@ static uint64_t esp32c3_systimer_read(void *opaque, hwaddr addr, unsigned int si
     uint64_t r = 0;
 
     switch (addr) {
+        case A_SYSTIMER_CONF:
+            /* On the C3, bit 27 is always 0, bit 25 is always high */
+            r = class->parent_systimer_read(opaque, addr, size);
+            r &= ~BIT(27);
+            r |=  BIT(25);
+            break;
+
         case A_SYSTIMER_REAL_TARGET0_LO:
         case A_SYSTIMER_REAL_TARGET0_HI:
         case A_SYSTIMER_REAL_TARGET1_LO:
         case A_SYSTIMER_REAL_TARGET1_HI:
         case A_SYSTIMER_REAL_TARGET2_LO:
         case A_SYSTIMER_REAL_TARGET2_HI:
-            /* These registers are not supported on the C3 hardware, so nothing! */
+            /* These registers are not supported on the C3 hardware, do nothing! */
             break;
 
         default:

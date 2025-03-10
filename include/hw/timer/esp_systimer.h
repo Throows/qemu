@@ -69,7 +69,8 @@ static inline void systimer_set_reg(uint64_t* reg, uint64_t value, uint64_t mask
 typedef struct {
     bool enabled;
     /* Enabled on CPU stall */
-    bool enabled_on_stall;
+    bool core0_stall_en;
+    bool core1_stall_en;
     uint64_t value;   // Internal counter that should be updated as often as possible
     uint64_t toload;  // Counter that can be loaded by the guest program
     uint64_t flushed; // Mirror of the internal counter that can be seen by the guest program

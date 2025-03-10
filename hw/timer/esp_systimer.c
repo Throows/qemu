@@ -381,8 +381,10 @@ static void esp_systimer_conf_set(ESPSysTimerState *s, uint64_t value)
     }
     s->counter[0].enabled = (value & R_SYSTIMER_CONF_TIMER_UNIT0_WORK_EN_MASK) ? 1 : 0;
     s->counter[1].enabled = (value & R_SYSTIMER_CONF_TIMER_UNIT1_WORK_EN_MASK) ? 1 : 0;
-    s->counter[0].enabled_on_stall = (value & R_SYSTIMER_CONF_TIMER_UNIT0_CORE0_STALL_EN_MASK) ? 1 : 0;
-    s->counter[1].enabled_on_stall = (value & R_SYSTIMER_CONF_TIMER_UNIT1_CORE0_STALL_EN_MASK) ? 1 : 0;
+    s->counter[0].core0_stall_en = (value & R_SYSTIMER_CONF_TIMER_UNIT0_CORE0_STALL_EN_MASK) ? 1 : 0;
+    s->counter[1].core0_stall_en = (value & R_SYSTIMER_CONF_TIMER_UNIT1_CORE0_STALL_EN_MASK) ? 1 : 0;
+    s->counter[0].core1_stall_en = (value & R_SYSTIMER_CONF_TIMER_UNIT0_CORE1_STALL_EN_MASK) ? 1 : 0;
+    s->counter[1].core1_stall_en = (value & R_SYSTIMER_CONF_TIMER_UNIT1_CORE1_STALL_EN_MASK) ? 1 : 0;
 
     /* If the state of the counter changed while one of the comparator depends on it, reload it */
     for (int i = 0; i < ESP_SYSTIMER_COMP_COUNT; i++) {
@@ -558,10 +560,22 @@ static void esp_systimer_cb(void* opaque)
 }
 
 
+static void esp_systimer_default_conf(ESPSysTimerState *s)
+{
+    /* According to the TRM, on dual-core targets, counter 1 stalls with core 1 */
+    s->counter[1].core0_stall_en = true;
+    s->counter[1].core1_stall_en = true;
+    /* Counter 0 is marked as enabled (no comparator enabled though) */
+    s->counter[0].enabled = true;
+    s->conf = R_SYSTIMER_CONF_TIMER_UNIT0_WORK_EN_MASK |
+              R_SYSTIMER_CONF_TIMER_UNIT1_CORE0_STALL_EN_MASK |
+              R_SYSTIMER_CONF_TIMER_UNIT1_CORE1_STALL_EN_MASK;
+}
+
+
 static void esp_systimer_reset(DeviceState* ts)
 {
     ESPSysTimerState *s = ESP_SYSTIMER(ts);
-    s->conf = 0;
     for (int i = 0; i < ESP_SYSTIMER_COMP_COUNT; i++) {
         ESPSysTimerComp* comp = &s->comparators[i];
         QEMUTimer qtimer = comp->qtimer;
@@ -579,6 +593,7 @@ static void esp_systimer_reset(DeviceState* ts)
         comp->irq = irq;
         comp->systimer = s;
     }
+    esp_systimer_default_conf(s);
 }
 
 
@@ -602,6 +617,7 @@ static void esp_systimer_init(Object *obj)
         sysbus_init_irq(sbd, &s->comparators[i].irq);
         timer_init_ns(&s->comparators[i].qtimer, QEMU_CLOCK_VIRTUAL, esp_systimer_cb, &s->comparators[i]);
     }
+    esp_systimer_default_conf(s);
 }
 
 

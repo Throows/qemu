@@ -83,7 +83,7 @@ static void esp32c3_virtual_counter_reset(ESP32C3VirtualCounter* counter)
     timer_del(&counter->timer);
     counter->base = 0;
     counter->value = 0;
-    counter->frequency = 160000000; // Hz
+    counter->frequency = ESP32C3_APB_CLK;
 }
 
 
@@ -320,8 +320,8 @@ static void esp32c3_t0_cb(void* opaque)
 {
     ESP32C3T0State* t = (ESP32C3T0State*) opaque;
 
-    /* Update the value of the counter and disable the alarm timer */
-    esp32c3_virtual_counter_reset(&t->counter);
+    /* Disable the alarm timer */
+    timer_del(&t->counter.timer);
     esp32c3_virtual_counter_reenabled(&t->counter);
 
     /* In practice, the counter is bigger than the requested value, this is due to the fact
@@ -336,7 +336,7 @@ static void esp32c3_t0_cb(void* opaque)
 
     /* Alarm was triggered, clear alarm bit, set the IRQ if interrupts enabled */
     t->config &= ~R_TIMG_T0CONFIG_ALARM_EN_MASK;
-    t->raw_st = true;
+    t->raw_st = 1;
     if (t->int_enabled) {
         qemu_irq_raise(t->interrupt_irq);
     }
@@ -628,10 +628,22 @@ static void esp32c3_timg_write(void *opaque, hwaddr addr,
             break;
 
         /* Interrupt related registers */
-        case A_TIMG_INT_ENA_TIMG:
+        case A_TIMG_INT_ENA_TIMG: {
+            bool former = s->wdt.int_enabled;
             s->wdt.int_enabled = FIELD_EX32(value, TIMG_INT_ENA_TIMG, WDT_ENA) ? true : false;
+            if (s->wdt.int_enabled != former) {
+                qemu_set_irq(s->wdt.interrupt_irq,
+                                s->wdt.raw_st && s->wdt.int_enabled ? 1 : 0);
+            }
+
+            former = s->t0.int_enabled;
             s->t0.int_enabled = FIELD_EX32(value, TIMG_INT_ENA_TIMG, T0_ENA) ? true : false;
+            if (s->t0.int_enabled != former) {
+                qemu_set_irq(s->t0.interrupt_irq,
+                                s->t0.raw_st && s->t0.int_enabled ? 1 : 0);
+            }
             break;
+        }
         case A_TIMG_INT_CLR_TIMG:
             if (FIELD_EX32(value, TIMG_INT_CLR_TIMG, WDT_CLR)) {
                 s->wdt.raw_st = 0;

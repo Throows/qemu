@@ -59,9 +59,16 @@ static uint64_t esp_cpu_get_cycles(ESPCPUCycleCounter* cc)
 
     /* If we are not in the first call, calculate the difference */
     if (cc->former_time != 0) {
-        /* Let's say that we have 1 instruction/clock cycle, so 1 instruction/6.25ns */
+        /* The divider is in picoseconds, for a more precise result. It would be possible to simpyl return
+         * cc->cycles = (now * 1000 / cc->divider). However, doing so would prevent a future implementation
+         * of CPU frequency change as the cycles count would go backward as soon as the frequency is higher
+         */
         assert(cc->divider != 0);
-        diff = (now - cc->former_time) / cc->divider;
+        const uint64_t num = (now - cc->former_time) * 1000 + cc->former_rem_cycles;
+        diff = num / cc->divider;
+        /* Store the remaining executed clock cycles that were not taken into account in the division,
+         * they will be added back in the next run */
+        cc->former_rem_cycles = num % cc->divider;
     }
     cc->former_time = now;
     cc->cycles += diff;
@@ -307,10 +314,10 @@ static void esp_cpu_init(Object *obj)
     riscv_set_csr_ops(ESP_CPU_CSR_MCYCLE_U, &esp_cpu_csr_ops);
 
     s->cc_machine = (ESPCPUCycleCounter) {
-        .divider = 6,   /* 6.25ns per instruction at 160MHz. */
+        .divider = 6250,   /* 6.25ns per instruction at 160MHz. */
     };
     s->cc_user = (ESPCPUCycleCounter) {
-        .divider = 6,   /* Should be using the target configured CPU clock frequency instead. */
+        .divider = 6250,   /* Should be using the target configured CPU clock frequency instead. */
     };
 }
 

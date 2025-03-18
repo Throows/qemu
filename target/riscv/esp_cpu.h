@@ -35,8 +35,9 @@
 /* Define a type that will be used to generate a cycle counter */
 typedef struct {
     uint64_t former_time;
+    uint64_t former_rem_cycles;
     uint64_t cycles;
-    /* The number of nanosecond an instruction takes to execute */
+    /* The number of picoseconds an instruction takes to execute */
     uint64_t divider;
 } ESPCPUCycleCounter;
 

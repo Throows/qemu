@@ -20,6 +20,9 @@
 #include "sysemu/reset.h"
 #include "esp_cpu.h"
 
+#define BIT_SET(reg, bit)   ((reg) & BIT(bit))
+#define CLEAR_BIT(reg, bit) do { (reg) &= ~BIT(bit); } while(0)
+#define SET_BIT(reg, bit)   do { (reg) |= BIT(bit); } while(0)
 
 /* CSR-related */
 #define ESP_CPU_CSR_PCER_M      0x7E0
@@ -120,27 +123,7 @@ static RISCVException esp_cpu_csr_write(CPURISCVState *env, int csrno, target_ul
 }
 
 
-static RISCVException esp_cpu_write_mstatus(CPURISCVState *env, int csrno, target_ulong val) {
-    EspRISCVCPU *s = esp_cpu_riscv_to_cpu(env);
-    EspRISCVCPUClass *klass = ESP_CPU_GET_CLASS(s);
-
-    const int previous_mie = env->mstatus & MSTATUS_MIE;
-
-    RISCVException excp = klass->parent_mstatus_write(env, csrno, val);
-
-    const int new_mie = env->mstatus & MSTATUS_MIE;
-
-    /* Check if the MIE bit of MSTATUS has just been enabled by the application.
-     * If that's the case, the interrupts are enabled again, notify the interrupt matrix. */
-    if (new_mie && !previous_mie && s->mie_enabled_callback) {
-        s->mie_enabled_callback(s->mie_enabled_opaque);
-    }
-
-    return excp;
-}
-
-
-static void esp_cpu_register_mie_callback(EspRISCVCPU *env, EspRISCVCallback callback, void* opaque)
+static void esp_cpu_register_mie_callback(EspRISCVCPU *env, EspIntEnableCallback callback, void* opaque)
 {
     assert(env != NULL);
     env->mie_enabled_callback = callback;
@@ -194,6 +177,31 @@ static bool esp_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
     EspRISCVCPU *cpu = ESP_CPU(cs);
     EspRISCVCPUClass *klass = ESP_CPU_GET_CLASS(cpu);
 
+    if (!cpu->irq_pending) {
+        /* We arrive here after servicing an interrupt but haven't de-asserted the parent IRQ.
+         * If the CPU can now accept interrupts, invoke the callback that will check for the next
+         * interrupt. */
+        if (esp_cpu_accept_interrupts(cpu)) {
+            /* Mark whether we have interrupts pending or not */
+            bool pending = false;
+
+            if (cpu->mie_enabled_callback) {
+                /* If the callback schedules a new interrupt, `cpu->irq_pending` will be set after */
+                pending = cpu->mie_enabled_callback(cpu->mie_enabled_opaque);
+            }
+
+            /* If no further interrupt was scheduled OR no further interrupts are pending, lower the parent's IRQ */
+            if (!pending && !cpu->irq_pending) {
+                qemu_irq_lower(cpu->parent_irq);
+            }
+        }
+        /* If the CPU still doesn't accept interrupts or the callback invoked didn't schedule a new interrupt,
+         * return false to mark the absence of interrupt. */
+        if (!cpu->irq_pending) {
+            return false;
+        }
+    }
+
     const bool accepted = klass->parent_exec_interrupt(cs, interrupt_request);
 
     if (accepted) {
@@ -203,7 +211,6 @@ static bool esp_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 
         /* IRQ has been acknowledged by the parent CPU, it is not pending anymore */
         cpu->irq_pending = false;
-        qemu_irq_lower(cpu->parent_irq);
 
         /* Update the mcause and the relevant PC */
         env->mcause = RISCV_EXCP_INT_FLAG | cause;
@@ -339,13 +346,6 @@ static void esp_cpu_class_init(ObjectClass *klass, void *data)
 
     /* Function to register MIE callback */
     cpuclass->esp_cpu_register_mie_callback = esp_cpu_register_mie_callback;
-
-    /* Override the CSR write for mstatus */
-    riscv_csr_operations ops;
-    riscv_get_csr_ops(CSR_MSTATUS, &ops);
-    cpuclass->parent_mstatus_write = ops.write;
-    ops.write = esp_cpu_write_mstatus;
-    riscv_set_csr_ops(CSR_MSTATUS, &ops);
 }
 
 static const TypeInfo esp_cpu_info = {

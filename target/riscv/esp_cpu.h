@@ -43,8 +43,12 @@ typedef struct {
 
 /**
  * @brief Callback type called when MIE status bit is re-enabled
+ *
+ * @param Opaque context given when registering the callback
+ *
+ * @returns true if any interrupt is pending, false is no interrupt is pending
  */
-typedef void (*EspRISCVCallback)(void*);
+typedef bool (*EspIntEnableCallback)(void*);
 
 /**
  * Espressif's RISC-V core is different from standard RISC-V because of the way interrupts are handled.
@@ -58,8 +62,8 @@ typedef struct EspRISCVCPU {
     ESPCPUCycleCounter cc_user;
     ESPCPUCycleCounter cc_machine;
 
-    /* Callback called when the MIE bit is re-enabled in `mstatus` CSR */
-    EspRISCVCallback mie_enabled_callback;
+    /* Callback called when the interrupts are re-enabled */
+    EspIntEnableCallback mie_enabled_callback;
     void* mie_enabled_opaque;
 
     /*< public >*/
@@ -82,10 +86,9 @@ typedef struct EspRISCVCPUClass {
     DeviceRealize parent_realize;
     DeviceReset parent_reset;
     bool (*parent_exec_interrupt)(CPUState *cpu, int interrupt_request);
-    RISCVException (*parent_mstatus_write)(CPURISCVState *env, int csrno, target_ulong val);
 
     /*< public >*/
-    void (*esp_cpu_register_mie_callback)(EspRISCVCPU *env, EspRISCVCallback callback, void* opaque);
+    void (*esp_cpu_register_mie_callback)(EspRISCVCPU *env, EspIntEnableCallback callback, void* opaque);
 } EspRISCVCPUClass;
 
 /**

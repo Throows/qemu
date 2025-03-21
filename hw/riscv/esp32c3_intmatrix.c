@@ -11,6 +11,7 @@
 #include "qemu/osdep.h"
 #include "qemu/log.h"
 #include "qemu/queue.h"
+#include "qemu/timer.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
 #include "hw/hw.h"
@@ -27,13 +28,6 @@
 #define BIT_SET(reg, bit)   ((reg) & BIT(bit))
 #define CLEAR_BIT(reg, bit) do { (reg) &= ~BIT(bit); } while(0)
 #define SET_BIT(reg, bit)   do { (reg) |= BIT(bit); } while(0)
-
-
-/* Because the interrupts are asynchronous, there is a small chance that multiple interrupts
- * are triggered at the same time, overlapping the first one. Use a FIFO structure to store
- * all the events. This may not be required once the custom RISC-V core is implemented (which
- * would serialize the incoming IRQs). */
-#define ESP32C3_IRQ_FIFO_LENGTH 8
 
 
 static void esp32c3_do_int(ESP32C3IntMatrixState *s, int line)
@@ -75,19 +69,7 @@ static void esp32c3_intmatrix_clear_pending(ESP32C3IntMatrixState *s, int line)
 }
 
 
-/**
- * Check if an interrupt can be triggered.
- * This is the case if the interrupt matrix hasn't notified the CPU yet that an interrupt is incoming.
- * Because interrupt handling is asynchronous in QEMU, if an interrupt occurs right now, MIE will not be set
- * until the current TB (guest compiled block) terminates and CPU checks for the current interrupts.
- * The problem is that, here, if another interrupt of a valid priority occurs before the current TB finished
- * its execution (MIE still set), the interrupt will be accepted, put inside our IRQ FIFO and popped
- * when the guest is still handling the previous interrupt which is not a valid state!
- * As interrupts on the ESP32-C3 occur as soon as the interrupt line is raised, MIE is directly reset, forbidding
- * any other interrupt to occur. The interrupt handler will raise the priority and re-enable it.
- * Thus, make sure our FIFO is before triggering an interrupt, and ignore MIE flag which is meaningless.
- */
-static bool esp32c3_intmatrix_can_trigger(ESP32C3IntMatrixState *s)
+static inline bool esp32c3_intmatrix_can_trigger(ESP32C3IntMatrixState *s)
 {
     return esp_cpu_accept_interrupts(s->cpu);
 }
@@ -222,14 +204,15 @@ static void esp32c3_intmatrix_irq_status_changed(ESP32C3IntMatrixState* s, uint3
 
 
 /**
- * Function called as soon as the MIE bit is (re)enabled
+ * Callback invoked by the CPU as soon as interrupts are re-enabled
  */
-static void esp32c3_intmatrix_mie_enabled(void* opaque)
+static bool esp32c3_intmatrix_mie_enabled(void* opaque)
 {
     ESP32C3IntMatrixState *s = ESP32C3_INTMATRIX(opaque);
     /* We need to check if any interrupt is pending and trigger it. We have such function already, triggered when
      * the core priority changes, let's reuse this function by giving the same core priority */
     esp32c3_intmatrix_core_prio_changed(s, s->irq_thres);
+    return s->irq_pending != 0;
 }
 
 

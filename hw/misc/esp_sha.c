@@ -319,9 +319,9 @@ static const MemoryRegionOps esp_sha_ops = {
 };
 
 
-static void esp_sha_reset(DeviceState *dev)
+static void esp_sha_reset_hold(Object *obj, ResetType type)
 {
-    ESPShaState *s = ESP_SHA(dev);
+    ESPShaState *s = ESP_SHA(obj);
     memset(s->hash, 0, 8 * sizeof(uint32_t));
     memset(s->message, 0, ESP_SHA_MAX_MESSAGE_WORDS * sizeof(uint32_t));
 
@@ -358,9 +358,10 @@ static void esp_sha_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     ESPShaClass* esp_sha = ESP_SHA_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
     dc->realize = esp_sha_realize;
-    dc->legacy_reset = esp_sha_reset;
+    rc->phases.hold = esp_sha_reset_hold;
 
     esp_sha->sha_start = esp_sha_start;
 }

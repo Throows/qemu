@@ -159,9 +159,9 @@ static const MemoryRegionOps esp_hmac_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp_hmac_reset(DeviceState *dev)
+static void esp_hmac_reset_hold(Object *obj, ResetType type)
 {
-    ESPHmacState *s = ESP_HMAC(dev);
+    ESPHmacState *s = ESP_HMAC(obj);
     memset(s->message, 0, sizeof(s->message));
     memset(s->result, 0, sizeof(s->result));
 
@@ -194,9 +194,10 @@ static void esp_hmac_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     ESPHmacClass* esp_hmac = ESP_HMAC_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
     dc->realize = esp_hmac_realize;
-    dc->legacy_reset = esp_hmac_reset;
+    rc->phases.hold = esp_hmac_reset_hold;
 
     esp_hmac->hmac_update = esp_hmac_update;
     esp_hmac->hmac_finish = esp_hmac_finish;

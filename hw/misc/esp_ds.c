@@ -46,8 +46,7 @@ static void esp_ds_generate_ds_key(ESPDsState *s)
     }
 
     // The DS peripheral resets the HMAC peripheral once it has completed the respective operation.
-    DeviceClass *hmac_dc = DEVICE_CLASS(hmac_class);
-    hmac_dc->legacy_reset((DeviceState*)(s->hmac));
+    resettable_reset(OBJECT(s->hmac), RESET_TYPE_S390_CPU_NORMAL);
 }
 
 static void esp_ds_decrypt_ciphertext(ESPDsState *s, uint8_t *buffer)
@@ -82,8 +81,7 @@ static void esp_ds_decrypt_ciphertext(ESPDsState *s, uint8_t *buffer)
     }
 
     // The DS peripheral resets the AES peripheral once it has completed the respective operation.
-    DeviceClass *aes_dc = DEVICE_CLASS(aes_class);
-    aes_dc->legacy_reset((DeviceState*)(s->aes));
+    resettable_reset(OBJECT(s->aes), RESET_TYPE_S390_CPU_NORMAL);
 }
 
 static bool md_and_pad_check(ESPDsState *s)
@@ -180,8 +178,7 @@ static bool md_and_pad_check(ESPDsState *s)
     }
 
     // The DS peripheral resets the SHA peripheral once it has completed the respective operation.
-    DeviceClass *sha_dc = DEVICE_CLASS(sha_class);
-    sha_dc->legacy_reset((DeviceState*)(s->sha));
+    resettable_reset(OBJECT(s->sha), RESET_TYPE_S390_CPU_NORMAL);
 
     if (memcmp(md, md_check, SHA256_DIGEST_SIZE) == 0) {
         s->ds_signature_check ^= DS_SIGNATURE_MD_FAIL;
@@ -201,8 +198,7 @@ static void esp_ds_generate_signature(ESPDsState *s)
     rsa_class->rsa_exp_mod(s->rsa, mode, s->x_mem, s->y_mem, s->m_mem, s->z_mem, 0);
 
     // The DS peripheral resets the RSA peripheral once it has completed the respective operation.
-    DeviceClass *rsa_dc = DEVICE_CLASS(rsa_class);
-    rsa_dc->legacy_reset((DeviceState*)(s->rsa));
+    resettable_reset(OBJECT(s->rsa), RESET_TYPE_S390_CPU_NORMAL);
 }
 
 static void esp_ds_calculate(ESPDsState *s)
@@ -382,9 +378,9 @@ static const MemoryRegionOps esp_ds_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp_ds_reset(DeviceState *dev)
+static void esp_ds_reset_hold(Object *obj, ResetType type)
 {
-    ESPDsState *s = ESP_DS(dev);
+    ESPDsState *s = ESP_DS(obj);
     esp_ds_clear_buffers(s);
     s->ds_signature_check = DS_SIGNATURE_PADDING_AND_MD_FAIL;
 }
@@ -453,9 +449,10 @@ static void esp_ds_init(Object *obj)
 static void esp_ds_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
     dc->realize = esp_ds_realize;
-    dc->legacy_reset = esp_ds_reset;
+    rc->phases.hold = esp_ds_reset_hold;
 }
 
 static const TypeInfo esp_ds_info = {
@@ -474,4 +471,4 @@ static void esp_ds_register_types(void)
     type_register_static(&esp_ds_info);
 }
 
-type_init(esp_ds_register_types) 
+type_init(esp_ds_register_types)

@@ -408,9 +408,9 @@ static const MemoryRegionOps esp_aes_ops = {
         .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp_aes_reset(DeviceState *dev)
+static void esp_aes_reset_hold(Object *obj, ResetType type)
 {
-    ESPAesState *s = ESP_AES(dev);
+    ESPAesState *s = ESP_AES(obj);
     memset(s->key, 0, ESP_AES_KEY_REG_CNT * sizeof(uint32_t));
     memset(s->text_in, 0, ESP_AES_TEXT_REG_CNT * sizeof(uint32_t));
     memset(s->text_out, 0, ESP_AES_TEXT_REG_CNT * sizeof(uint32_t));
@@ -450,9 +450,10 @@ static void esp_aes_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     ESPAesClass* esp_aes = ESP_AES_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
     dc->realize = esp_aes_realize;
-    dc->legacy_reset = esp_aes_reset;
+    rc->phases.hold = esp_aes_reset_hold;
 
     esp_aes->aes_block_start = aes_block_start;
 }

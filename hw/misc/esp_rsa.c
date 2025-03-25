@@ -409,9 +409,9 @@ static const MemoryRegionOps esp_rsa_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp_rsa_reset(DeviceState *dev)
+static void esp_rsa_reset_hold(Object *obj, ResetType type)
 {
-    ESPRsaState *s = ESP_RSA(dev);
+    ESPRsaState *s = ESP_RSA(obj);
 
     esp_rsa_clean_mem(s);
 
@@ -434,10 +434,10 @@ static void esp_rsa_init(Object *obj)
 
 static void esp_rsa_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
     ESPRsaClass* esp_rsa = ESP_RSA_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp_rsa_reset;
+    rc->phases.hold = esp_rsa_reset_hold;
 
     esp_rsa->rsa_exp_mod = esp_rsa_exp_mod;
 }

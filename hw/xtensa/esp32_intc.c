@@ -73,9 +73,9 @@ static const MemoryRegionOps esp_intmatrix_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32_intmatrix_reset(DeviceState *dev)
+static void esp32_intmatrix_reset_hold(Object *obj, ResetType type)
 {
-    Esp32IntMatrixState *s = ESP32_INTMATRIX(dev);
+    Esp32IntMatrixState *s = ESP32_INTMATRIX(obj);
     memset(s->irq_map, INTMATRIX_UNINT_VALUE, sizeof(s->irq_map));
     for (int i = 0; i < ESP32_CPU_COUNT; ++i) {
         if (s->outputs[i] == NULL) {
@@ -97,7 +97,7 @@ static void esp32_intmatrix_realize(DeviceState *dev, Error **errp)
             s->outputs[i] = xtensa_get_extints(&s->cpu[i]->env);
         }
     }
-    esp32_intmatrix_reset(dev);
+    esp32_intmatrix_reset_hold(OBJECT(dev), RESET_TYPE_COLD);
 }
 
 static void esp32_intmatrix_init(Object *obj)
@@ -121,8 +121,9 @@ static Property esp32_intmatrix_properties[] = {
 static void esp32_intmatrix_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32_intmatrix_reset;
+    rc->phases.hold = esp32_intmatrix_reset_hold;
     dc->realize = esp32_intmatrix_realize;
     device_class_set_props(dc, esp32_intmatrix_properties);
 }

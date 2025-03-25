@@ -8,9 +8,9 @@
 static void esp32_i2c_do_transaction(Esp32I2CState * s);
 static void esp32_i2c_update_irq(Esp32I2CState * s);
 
-static void esp32_i2c_reset(DeviceState * dev)
+static void esp32_i2c_reset_hold(Object *obj, ResetType type)
 {
-    Esp32I2CState * s = Esp32_I2C(dev);
+    Esp32I2CState * s = Esp32_I2C(obj);
 
     fifo8_reset(&s->rx_fifo);
     fifo8_reset(&s->tx_fifo);
@@ -263,8 +263,8 @@ static void esp32_i2c_init(Object * obj)
 
 static void esp32_i2c_class_init(ObjectClass * klass, void * data)
 {
-    DeviceClass * dc = DEVICE_CLASS(klass);
-    dc->legacy_reset = esp32_i2c_reset;
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
+    rc->phases.hold = esp32_i2c_reset_hold;
 }
 
 static const TypeInfo esp32_i2c_type_info = {

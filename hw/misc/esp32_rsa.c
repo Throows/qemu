@@ -319,9 +319,9 @@ static const MemoryRegionOps esp32_rsa_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32_rsa_reset(DeviceState *dev)
+static void esp32_rsa_reset_hold(Object *obj, ResetType type)
 {
-    Esp32RsaState *s = ESP32_RSA(dev);
+    Esp32RsaState *s = ESP32_RSA(obj);
 
     esp32_rsa_clean_mem(s);
 
@@ -344,9 +344,8 @@ static void esp32_rsa_init(Object *obj)
 
 static void esp32_rsa_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
-
-    dc->legacy_reset = esp32_rsa_reset;
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
+    rc->phases.hold = esp32_rsa_reset_hold;
 }
 
 static const TypeInfo esp32_rsa_info = {

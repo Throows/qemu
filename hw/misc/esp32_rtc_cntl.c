@@ -177,9 +177,9 @@ static const MemoryRegionOps esp32_rtc_cntl_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32_rtc_cntl_reset(DeviceState *dev)
+static void esp32_rtc_cntl_reset_hold(Object *obj, ResetType type)
 {
-    Esp32RtcCntlState *s = ESP32_RTC_CNTL(dev);
+    Esp32RtcCntlState *s = ESP32_RTC_CNTL(obj);
 
     s->time_base_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
 }
@@ -222,8 +222,9 @@ static Property esp32_rtc_cntl_properties[] = {
 static void esp32_rtc_cntl_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32_rtc_cntl_reset;
+    rc->phases.hold = esp32_rtc_cntl_reset_hold;
     dc->realize = esp32_rtc_cntl_realize;
     device_class_set_props(dc, esp32_rtc_cntl_properties);
 }

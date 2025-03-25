@@ -242,17 +242,16 @@ static void esp32_flash_encryption_init(Object *obj)
     sysbus_init_mmio(sbd, &s->iomem);
 }
 
-static void esp32_flash_encryption_reset(DeviceState *dev)
+static void esp32_flash_encryption_reset_hold(Object *obj, ResetType type)
 {
-    Esp32FlashEncryptionState *s = ESP32_FLASH_ENCRYPTION(dev);
+    Esp32FlashEncryptionState *s = ESP32_FLASH_ENCRYPTION(obj);
     s->encryption_done = false;
 }
 
 static void esp32_flash_encryption_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
-
-    dc->legacy_reset = esp32_flash_encryption_reset;
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
+    rc->phases.hold = esp32_flash_encryption_reset_hold;
 }
 
 static const TypeInfo esp32_flash_encryption_info = {

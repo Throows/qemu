@@ -47,7 +47,7 @@ static const MemoryRegionOps uart_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32_gpio_reset(DeviceState *dev)
+static void esp32_gpio_reset_hold(Object *obj, ResetType type)
 {
 }
 
@@ -79,8 +79,9 @@ static Property esp32_gpio_properties[] = {
 static void esp32_gpio_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32_gpio_reset;
+    rc->phases.hold = esp32_gpio_reset_hold;
     dc->realize = esp32_gpio_realize;
     device_class_set_props(dc, esp32_gpio_properties);
 }

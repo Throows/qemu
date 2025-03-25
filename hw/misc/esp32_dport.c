@@ -364,9 +364,9 @@ static const MemoryRegionOps esp32_cache_ill_trap_ops = {
     .write = esp32_cache_ill_write,
 };
 
-static void esp32_dport_reset(DeviceState *dev)
+static void esp32_dport_reset_hold(Object *obj, ResetType type)
 {
-    Esp32DportState *s = ESP32_DPORT(dev);
+    Esp32DportState *s = ESP32_DPORT(obj);
 
     s->appcpu_boot_addr = 0;
     s->appcpu_clkgate_state = false;
@@ -454,8 +454,9 @@ static Property esp32_dport_properties[] = {
 static void esp32_dport_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32_dport_reset;
+    rc->phases.hold = esp32_dport_reset_hold;
     dc->realize = esp32_dport_realize;
     device_class_set_props(dc, esp32_dport_properties);
 }

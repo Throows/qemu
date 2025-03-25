@@ -309,9 +309,9 @@ static void uart_rx_timeout_timer_cb(void* opaque)
     esp32_uart_update_irq(s);
 }
 
-static void esp32_uart_reset(DeviceState *dev)
+static void esp32_uart_reset_hold(Object *obj, ResetType type)
 {
-    ESP32UARTState *s = ESP32_UART(dev);
+    ESP32UARTState *s = ESP32_UART(obj);
 
     memset(s->reg, 0, sizeof(s->reg));
     s->reg[R_UART_RXD_CNT] = 0;
@@ -379,12 +379,13 @@ static void esp32_uart_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     ESP32UARTClass *class = ESP32_UART_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
     /* Populate the virtual attributes and methods here (if any) */
     class->uart_write = uart_write;
     class->uart_read = uart_read;
 
-    dc->legacy_reset = esp32_uart_reset;
+    rc->phases.hold = esp32_uart_reset_hold;
     dc->realize = esp32_uart_realize;
     device_class_set_props(dc, esp32_uart_properties);
 }

@@ -237,9 +237,9 @@ static const MemoryRegionOps esp32_efuse_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32_efuse_reset(DeviceState *dev)
+static void esp32_efuse_reset_hold(Object *obj, ResetType type)
 {
-    Esp32EfuseState *s = ESP32_EFUSE(dev);
+    Esp32EfuseState *s = ESP32_EFUSE(obj);
     esp32_efuse_read_op(s);
 }
 
@@ -285,8 +285,9 @@ static Property esp32_efuse_properties[] = {
 static void esp32_efuse_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32_efuse_reset;
+    rc->phases.hold = esp32_efuse_reset_hold;
     dc->realize = esp32_efuse_realize;
     device_class_set_props(dc, esp32_efuse_properties);
 }

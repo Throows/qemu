@@ -181,10 +181,9 @@ static const MemoryRegionOps esp32_frc_timer_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32_frc_timer_reset(DeviceState *dev)
+static void esp32_frc_timer_reset_hold(Object *obj, ResetType type)
 {
-    Esp32FrcTimerState *s = ESP32_FRC_TIMER(dev);
-
+    Esp32FrcTimerState *s = ESP32_FRC_TIMER(obj);
     s->prescaler = 1;
 }
 
@@ -223,8 +222,9 @@ static Property esp32_frc_timer_properties[] = {
 static void esp32_frc_timer_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32_frc_timer_reset;
+    rc->phases.hold = esp32_frc_timer_reset_hold;
     dc->realize = esp32_frc_timer_realize;
     device_class_set_props(dc, esp32_frc_timer_properties);
 }

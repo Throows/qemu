@@ -301,9 +301,9 @@ static void esp32_timg_wdt_reset(Esp32TimgWdtState* ws)
     }
 }
 
-static void esp32_timg_reset(DeviceState *dev)
+static void esp32_timg_reset_hold(Object *obj, ResetType type)
 {
-    Esp32TimgState *s = ESP32_TIMG(dev);
+    Esp32TimgState *s = ESP32_TIMG(obj);
     s->rtc_cal_max = 1;
     s->rtc_cal_clk_sel = ESP32_TIMG_CAL_8MD256;
     s->rtc_cal_ready = 0;
@@ -642,8 +642,9 @@ static Property esp32_timg_properties[] = {
 static void esp32_timg_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32_timg_reset;
+    rc->phases.hold = esp32_timg_reset_hold;
     dc->realize = esp32_timg_realize;
     device_class_set_props(dc, esp32_timg_properties);
 }

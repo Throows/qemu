@@ -302,9 +302,9 @@ static const MemoryRegionOps esp32c3_xts_aes_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32c3_xts_aes_reset(DeviceState *dev)
+static void esp32c3_xts_aes_reset_hold(Object *obj, ResetType type)
 {
-    ESP32C3XtsAesState *s = ESP32C3_XTS_AES(dev);
+    ESP32C3XtsAesState *s = ESP32C3_XTS_AES(obj);
     memset(s->plaintext, 0, ESP32C3_XTS_AES_PLAIN_REG_CNT * sizeof(uint32_t));
     memset(s->ciphertext, 0, ESP32C3_XTS_AES_PLAIN_REG_CNT * sizeof(uint32_t));
     s->state = XTS_AES_IDLE;
@@ -342,9 +342,10 @@ static void esp32c3_xts_aes_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     ESP32C3XtsAesClass* esp32c3_xts_aes = ESP32C3_XTS_AES_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
     dc->realize = esp32c3_xts_aes_realize;
-    dc->legacy_reset = esp32c3_xts_aes_reset;
+    rc->phases.hold = esp32c3_xts_aes_reset_hold;
 
     esp32c3_xts_aes->is_ciphertext_spi_visible = esp32c3_xts_aes_is_ciphertext_spi_visible;
     esp32c3_xts_aes->is_flash_enc_enabled = esp32c3_xts_aes_is_flash_enc_enabled;

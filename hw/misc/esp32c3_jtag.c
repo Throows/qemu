@@ -35,9 +35,10 @@ static const MemoryRegionOps esp32c3_jtag_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32c3_jtag_reset(DeviceState *dev)
+static void esp32c3_jtag_reset_hold(Object *obj, ResetType type)
 {
-    (void) dev;
+    (void) obj;
+    (void) type;
 }
 
 static void esp32c3_jtag_realize(DeviceState *dev, Error **errp)
@@ -59,8 +60,9 @@ static void esp32c3_jtag_init(Object *obj)
 static void esp32c3_jtag_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32c3_jtag_reset;
+    rc->phases.hold = esp32c3_jtag_reset_hold;
     dc->realize = esp32c3_jtag_realize;
 }
 

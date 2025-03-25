@@ -573,9 +573,9 @@ static void esp_systimer_default_conf(ESPSysTimerState *s)
 }
 
 
-static void esp_systimer_reset(DeviceState* ts)
+static void esp_systimer_reset_hold(Object *obj, ResetType type)
 {
-    ESPSysTimerState *s = ESP_SYSTIMER(ts);
+    ESPSysTimerState *s = ESP_SYSTIMER(obj);
     for (int i = 0; i < ESP_SYSTIMER_COMP_COUNT; i++) {
         ESPSysTimerComp* comp = &s->comparators[i];
         QEMUTimer qtimer = comp->qtimer;
@@ -625,8 +625,9 @@ static void esp_systimer_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     ESPSysTimerClass *class = ESP_SYSTIMER_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp_systimer_reset;
+    rc->phases.hold = esp_systimer_reset_hold;
     dc->realize = esp_systimer_realize;
 
     class->comparators_reprogram = esp_systimer_comparator_reprogram_all;

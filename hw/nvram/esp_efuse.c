@@ -569,9 +569,9 @@ static const MemoryRegionOps esp_efuse_ops = {
 };
 
 
-static void esp_efuse_reset(DeviceState *dev)
+static void esp_efuse_reset_hold(Object *obj, ResetType type)
 {
-    ESPEfuseState *s = ESP_EFUSE(dev);
+    ESPEfuseState *s = ESP_EFUSE(obj);
     timer_del(&s->op_timer);
     qemu_irq_lower(s->irq);
     esp_efuse_reload_from_blk(s);
@@ -606,7 +606,7 @@ static void esp_efuse_realize(DeviceState *dev, Error **errp)
             goto error;
         }
 
-        esp_efuse_reset((DeviceState*) s);
+        esp_efuse_reset_hold(OBJECT(s), RESET_TYPE_COLD);
     }
 
     /* State machine is ready */
@@ -639,8 +639,9 @@ static void esp_efuse_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     ESPEfuseClass* esp_efuse = ESP_EFUSE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp_efuse_reset;
+    rc->phases.hold = esp_efuse_reset_hold;
     dc->realize = esp_efuse_realize;
     device_class_set_props(dc, esp_efuse_properties);
 

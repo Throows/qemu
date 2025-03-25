@@ -343,9 +343,9 @@ static const MemoryRegionOps esp_intmatrix_ops = {
 };
 
 
-static void esp32c3_intmatrix_reset(DeviceState *dev)
+static void esp32c3_intmatrix_reset_hold(Object *obj, ResetType type)
 {
-    ESP32C3IntMatrixState *s = ESP32C3_INTMATRIX(dev);
+    ESP32C3IntMatrixState *s = ESP32C3_INTMATRIX(obj);
     RISCVCPU *cpu = &s->cpu->parent_obj;
 
     memset(s->irq_map, 0, sizeof(s->irq_map));
@@ -370,7 +370,7 @@ static void esp32c3_intmatrix_realize(DeviceState *dev, Error **errp)
     EspRISCVCPU *cpu = s->cpu;
     EspRISCVCPUClass *cpu_klass = ESP_CPU_GET_CLASS(cpu);
 
-    esp32c3_intmatrix_reset(dev);
+    esp32c3_intmatrix_reset_hold(OBJECT(dev), RESET_TYPE_COLD);
 
     /* Register MIE callback */
     assert(cpu);
@@ -401,8 +401,9 @@ static Property esp32c3_intmatrix_properties[] = {
 static void esp32c3_intmatrix_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32c3_intmatrix_reset;
+    rc->phases.hold = esp32c3_intmatrix_reset_hold;
     dc->realize = esp32c3_intmatrix_realize;
     device_class_set_props(dc, esp32c3_intmatrix_properties);
 }

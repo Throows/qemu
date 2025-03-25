@@ -307,9 +307,9 @@ static void esp_rgb_init(Object *obj)
 }
 
 
-static void esp_rgb_reset(DeviceState *dev)
+static void esp_rgb_reset_hold(Object *obj, ResetType type)
 {
-    ESPRgbState* s = ESP_RGB(dev);
+    ESPRgbState* s = ESP_RGB(obj);
 
     /* Default window size */
     s->width = ESP_RGB_MAX_WIDTH;
@@ -325,8 +325,9 @@ static void esp_rgb_reset(DeviceState *dev)
 static void esp_rgb_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp_rgb_reset;
+    rc->phases.hold = esp_rgb_reset_hold;
     dc->realize = esp_rgb_realize;
 }
 

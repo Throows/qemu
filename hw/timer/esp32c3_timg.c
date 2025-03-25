@@ -666,9 +666,9 @@ static const MemoryRegionOps esp32c3_timg_ops = {
 };
 
 
-static void esp32c3_timg_reset(DeviceState* ts)
+static void esp32c3_timg_reset_hold(Object *obj, ResetType type)
 {
-    ESP32C3TimgState *s = ESP32C3_TIMG(ts);
+    ESP32C3TimgState *s = ESP32C3_TIMG(obj);
 
     /* Reset watchdog */
     esp32c3_virtual_counter_reset(&s->wdt.counter);
@@ -724,7 +724,7 @@ static void esp32c3_timg_init(Object *obj)
     timer_init_ns(esp32c3_virtual_counter_get_timer(&s->t0.counter), QEMU_CLOCK_VIRTUAL, esp32c3_t0_cb, &s->t0);
 
     /* Set the initial values for the internal fields */
-    esp32c3_timg_reset((DeviceState*) s);
+    esp32c3_timg_reset_hold(obj, RESET_TYPE_COLD);
 }
 
 static Property esp32c3_timg_properties[] = {
@@ -735,8 +735,9 @@ static Property esp32c3_timg_properties[] = {
 static void esp32c3_timg_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32c3_timg_reset;
+    rc->phases.hold = esp32c3_timg_reset_hold;
     dc->realize = esp32c3_timg_realize;
     device_class_set_props(dc, esp32c3_timg_properties);
 }

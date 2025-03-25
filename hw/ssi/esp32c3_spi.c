@@ -406,9 +406,9 @@ static const MemoryRegionOps esp32c3_spi_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32c3_spi_reset(DeviceState *dev)
+static void esp32c3_spi_reset_hold(Object *obj, ResetType type)
 {
-    ESP32C3SpiState *s = ESP32C3_SPI(dev);
+    ESP32C3SpiState *s = ESP32C3_SPI(obj);
     memset(s->data_reg, 0, ESP32C3_SPI_BUF_WORDS * sizeof(uint32_t));
     s->mem_ctrl1 = FIELD_DP32(s->mem_ctrl1, SPI_MEM_CTRL1, CS_HOLD_DLY_RES, 0x3ff);
     s->mem_clock = FIELD_DP32(s->mem_clock, SPI_MEM_CLOCK, CLKCNT_N, 3);
@@ -447,7 +447,7 @@ static void esp32c3_spi_init(Object *obj)
     sysbus_init_mmio(sbd, &s->iomem);
     // sysbus_init_irq(sbd, &s->irq);
 
-    esp32c3_spi_reset(DEVICE(s));
+    esp32c3_spi_reset_hold(obj, RESET_TYPE_COLD);
 
     s->spi = ssi_create_bus(DEVICE(s), "spi");
     qdev_init_gpio_out_named(DEVICE(s), &s->cs_gpio[0], SSI_GPIO_CS, ESP32C3_SPI_CS_COUNT);
@@ -460,8 +460,9 @@ static Property esp32c3_spi_properties[] = {
 static void esp32c3_spi_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32c3_spi_reset;
+    rc->phases.hold = esp32c3_spi_reset_hold;
     dc->realize = esp32c3_spi_realize;
     device_class_set_props(dc, esp32c3_spi_properties);
 }

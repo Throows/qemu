@@ -555,10 +555,10 @@ static void esp_gdma_check_and_start_mem_transfer(ESPGdmaState *s, uint32_t chan
         state_out->link &= R_GDMA_OUT_LINK_ADDR_MASK;
         state_in->link  &= R_GDMA_IN_LINK_ADDR_MASK;
         /* Same goes for the status */
-        esp_gdma_clear_status(&state_in->int_state, 
+        esp_gdma_clear_status(&state_in->int_state,
                               R_GDMA_INTERRUPT_IN_DONE_MASK  |
                               R_GDMA_INTERRUPT_IN_SUC_EOF_MASK);
-        esp_gdma_clear_status(&state_out->int_state, 
+        esp_gdma_clear_status(&state_out->int_state,
                               R_GDMA_INTERRUPT_OUT_DONE_MASK |
                               R_GDMA_INTERRUPT_OUT_EOF_MASK  );
 
@@ -749,10 +749,10 @@ static void esp_gdma_check_and_start_mem_transfer(ESPGdmaState *s, uint32_t chan
             state_in->suc_eof_desc_addr = in_addr;
 
             /* Set the transfer as completed for both the IN and OUT link */
-            esp_gdma_set_status(&state_in->int_state, 
+            esp_gdma_set_status(&state_in->int_state,
                                 R_GDMA_INTERRUPT_IN_DONE_MASK  |
                                 R_GDMA_INTERRUPT_IN_SUC_EOF_MASK);
-            esp_gdma_set_status(&state_out->int_state, 
+            esp_gdma_set_status(&state_out->int_state,
                                 R_GDMA_INTERRUPT_OUT_DONE_MASK |
                                 R_GDMA_INTERRUPT_OUT_EOF_MASK);
         }
@@ -936,10 +936,10 @@ static Property esp_gdma_properties[] = {
 };
 
 
-static void esp_gdma_reset(DeviceState *dev)
+static void esp_gdma_reset_hold(Object *obj, ResetType type)
 {
-    ESPGdmaState *s = ESP_GDMA(dev);
-    ESPGdmaClass *klass = ESP_GDMA_GET_CLASS(dev);
+    ESPGdmaState *s = ESP_GDMA(obj);
+    ESPGdmaClass *klass = ESP_GDMA_GET_CLASS(obj);
 
     for (int dir = 0; dir < ESP_GDMA_CONF_COUNT; dir++) {
         for (int chan = 0; chan < klass->m_channel_count; chan++) {
@@ -973,7 +973,7 @@ static void esp_gdma_init(Object *obj)
 {
     ESPGdmaState *s = ESP_GDMA(obj);
     ESPGdmaClass *klass = ESP_GDMA_GET_CLASS(obj);
-    
+
     /* Make sure the number of channels passed by the child class is correct, use an abitrary limit */
     if (klass->m_channel_count == 0 || klass->m_channel_count > 16) {
         error_report("[GDMA] %s: invalid number of DMA channels (%zu)", __func__, klass->m_channel_count);
@@ -992,15 +992,16 @@ static void esp_gdma_init(Object *obj)
         }
     }
 
-    esp_gdma_reset((DeviceState*) s);
+    esp_gdma_reset_hold(obj, RESET_TYPE_COLD);
 }
 
 
 static void esp_gdma_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp_gdma_reset;
+    rc->phases.hold = esp_gdma_reset_hold;
     dc->realize = esp_gdma_realize;
     device_class_set_props(dc, esp_gdma_properties);
 }

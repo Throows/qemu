@@ -123,10 +123,10 @@ static const MemoryRegionOps esp_rtc_cntl_ops = {
 };
 
 
-static void esp32c3_rtc_cntl_reset(DeviceState *dev)
+static void esp32c3_rtc_cntl_reset_hold(Object *obj, ResetType type)
 {
     static bool first_boot = true;
-    ESP32C3RtcCntlState *s = ESP32C3_RTC_CNTL(dev);
+    ESP32C3RtcCntlState *s = ESP32C3_RTC_CNTL(obj);
     s->options0 = 0;
 
     if (first_boot) {
@@ -141,7 +141,7 @@ static void esp32c3_rtc_cntl_reset(DeviceState *dev)
 static void esp32c3_rtc_cntl_realize(DeviceState *dev, Error **errp)
 {
     ESP32C3RtcCntlState *s = ESP32C3_RTC_CNTL(dev);
-    esp32c3_rtc_cntl_reset(dev);
+    esp32c3_rtc_cntl_reset_hold(OBJECT(dev), RESET_TYPE_COLD);
     (void) s;
 }
 
@@ -165,8 +165,9 @@ static void esp32c3_rtc_cntl_init(Object *obj)
 static void esp32c3_rtc_cntl_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32c3_rtc_cntl_reset;
+    rc->phases.hold = esp32c3_rtc_cntl_reset_hold;
     dc->realize = esp32c3_rtc_cntl_realize;
 }
 

@@ -111,9 +111,9 @@ static const MemoryRegionOps esp32s3_clock_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32s3_clock_reset(DeviceState *dev)
+static void esp32s3_clock_reset_hold(Object *obj, ResetType type)
 {
-    ESP32S3ClockState *s = ESP32S3_CLOCK(dev);
+    ESP32S3ClockState *s = ESP32S3_CLOCK(obj);
     /* On board reset, set the proper clocks and dividers */
     s->sysclk = ( 1 << R_SYSTEM_SYSCLK_CONF_PRE_DIV_CNT_SHIFT) |
                 (ESP32S3_CLK_SEL_PLL << R_SYSTEM_SYSCLK_CONF_SOC_CLK_SEL_SHIFT) |
@@ -134,7 +134,7 @@ static void esp32s3_clock_reset(DeviceState *dev)
 static void esp32s3_clock_realize(DeviceState *dev, Error **errp)
 {
     /* Initialize the registers */
-    esp32s3_clock_reset(dev);
+    esp32s3_clock_reset_hold(OBJECT(dev), RESET_TYPE_COLD);
 }
 
 static void esp32s3_clock_init(Object *obj)
@@ -156,8 +156,9 @@ static void esp32s3_clock_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     ESP32S3ClockClass* esp32s3_clock = ESP32S3_CLOCK_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32s3_clock_reset;
+    rc->phases.hold = esp32s3_clock_reset_hold;
     dc->realize = esp32s3_clock_realize;
 
     esp32s3_clock->get_ext_dev_enc_dec_ctrl = esp32s3_clock_get_ext_dev_enc_dec_ctrl;

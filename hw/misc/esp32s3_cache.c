@@ -269,9 +269,9 @@ static const MemoryRegionOps esp32s3_cache_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void esp32s3_cache_reset(DeviceState *dev)
+static void esp32s3_cache_reset_hold(Object *obj, ResetType type)
 {
-    ESP32S3CacheState *s = ESP32S3_CACHE(dev);
+    ESP32S3CacheState *s = ESP32S3_CACHE(obj);
     memset(s->regs, 0, ESP32S3_CACHE_REG_COUNT * sizeof(*s->regs));
 
     /* Initialize the MMU with invalid entries */
@@ -293,7 +293,7 @@ static void esp32s3_cache_reset(DeviceState *dev)
 static void esp32s3_cache_realize(DeviceState *dev, Error **errp)
 {
     /* Initialize the registers */
-    esp32s3_cache_reset(dev);
+    esp32s3_cache_reset_hold(OBJECT(dev), RESET_TYPE_COLD);
     ESP32S3CacheState *s = ESP32S3_CACHE(dev);
 
     /* Make sure XTS_AES was set or issue an error */
@@ -352,8 +352,9 @@ static Property esp32s3_cache_properties[] = {
 static void esp32s3_cache_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
 
-    dc->legacy_reset = esp32s3_cache_reset;
+    rc->phases.hold = esp32s3_cache_reset_hold;
     dc->realize = esp32s3_cache_realize;
     device_class_set_props(dc, esp32s3_cache_properties);
 }

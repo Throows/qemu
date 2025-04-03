@@ -17,12 +17,31 @@
 #include "hw/qdev-properties.h"
 #include "hw/misc/ssi_psram.h"
 
-#define CMD_READ_ID 0x9f
+#define PSRAM_WARNING   0
+
+
+typedef enum PsramCMD {
+    NOP              = 0x00,
+    READ             = 0x03,
+    FAST_READ        = 0x0B,
+    FAST_READ_QUAD   = 0xEB,
+    WRITE            = 0x02,
+    QUAD_WRITE       = 0x38,
+    ENTER_QUAD_MODE  = 0x35,
+    EXIT_QUAD_MODE   = 0xF5,
+    RESET_ENABLE     = 0x66,
+    RESET            = 0x99,
+    SET_BURST_LENGTH = 0xC0,
+    READ_ID          = 0x9F,
+
+    /* Octal PSRAM commands */
+    OCT_READ_REG     = 0x4040,
+    OCT_WRITE_REG    = 0xc0c0
+} PsramCMD;
+
+
 #define PSRAM_ID_MFG 0x0d
 #define PSRAM_ID_KGD 0x5d
-
-#define CMD_READ_OCTAL_REG 0x4040
-#define CMD_WRITE_OCTAL_REG 0xc0c0
 
 #define MR0_DRIVE_STRENGHT_HALF     ((uint8_t)0b01  << 0)
 #define MR0_RD_LATENCY_CODE         ((uint8_t)0b010 << 2)
@@ -31,7 +50,7 @@
 #define MR1_VENDOR_ID               ((uint8_t)0b01101 << 0)
 #define MR1_NO_ULP                  ((uint8_t)0b0     << 5)
 
-#define MR2_DENSITY_MAPPING_64MB    ((uint8_t)0b011   << 0)
+#define MR2_DENSITY_MASK            ((uint8_t)0b111   << 0)
 #define MR2_DEVICE_ID_3_GEN         ((uint8_t)0b10    << 3)
 #define MR2_GOOD_DIE_BIT_PASS       ((uint8_t)0b1     << 7)
 
@@ -75,14 +94,16 @@ static int get_eid_by_size(uint32_t size_mbytes) {
 static uint32_t psram_quad_read(SsiPsramState *s)
 {
     uint32_t result = 0;
-    if (s->command == CMD_READ_ID) {
-        uint8_t read_id_response[] = {
+
+    if (s->state == ST_PROCESSING) {
+        const uint8_t read_id_response[] = {
+            /* 1 byte for the command itself, 3 bytes for the address */
             0x00, 0x00, 0x00, 0x00,
-            0x00, PSRAM_ID_MFG, PSRAM_ID_KGD,
+            PSRAM_ID_MFG, PSRAM_ID_KGD,
             get_eid_by_size(s->size_mbytes),
             0xaa, 0xbb, 0xcc, 0xdd, 0xee
         };
-        int index = s->byte_count - s->dummy;
+        const int index = s->byte_count;
         if (index < ARRAY_SIZE(read_id_response)) {
             result = read_id_response[index];
         }
@@ -92,18 +113,34 @@ static uint32_t psram_quad_read(SsiPsramState *s)
 
 static void psram_quad_write(SsiPsramState *s, uint32_t value)
 {
-    if (s->byte_count == s->dummy) {
-        s->command = value;
+    if (s->state == ST_IDLE) {
+        /* Idle state, check if a new command is sent */
+        switch (value) {
+            case NOP:
+                break;
+            case READ_ID:
+                s->state = ST_PROCESSING;
+                /* Should already be 0 but let's be safe */
+                s->byte_count = 0;
+                break;
+            default:
+#if PSRAM_WARNING
+                warn_report("\x1b[31m[QUAD PSRAM] Unsupported command 0x%02x \x1b[0m\n", value);
+#endif
+                break;
+        }
+    } else {
+        /* In transaction state, keep track of the number of bytes transferred */
+        s->byte_count++;
     }
-    s->byte_count++;
 }
+
 
 static uint32_t psram_octal_read(SsiPsramState *s)
 {
     uint32_t result = 0;
-    if (s->byte_count < 7) return result;
 
-    if (s->command == CMD_READ_OCTAL_REG) {  
+    if (s->state == ST_PROCESSING && s->command == OCT_READ_REG) {
         // Odd read bytes correspond to the next register
         switch (s->addr)
         {
@@ -133,37 +170,97 @@ static uint32_t psram_octal_read(SsiPsramState *s)
     return result;
 }
 
+
 static void psram_octal_write(SsiPsramState *s, uint32_t value)
 {
-    // Save the transfer to the state
-    if (s->byte_count == 0) {
-        s->command = value << s->byte_count;       
-    } else if (s->byte_count == 1) {
-        s->command |= value << (s->byte_count * 8);
-    } else if (s->byte_count == (s->dummy + 2)) {       // addr
-        s->addr = value;                       
-    }
-    s->byte_count++;
+    switch (s->state) {
+        case ST_IDLE:
+            s->command = value;
+            s->state = ST_CMD_LSB;
+            break;
+        case ST_CMD_LSB:
+            s->command |= value << 8;
+            if (s->command == OCT_READ_REG || s->command == OCT_WRITE_REG) {
+                s->state = ST_CMD_READY;
+            } else {
+#if PSRAM_WARNING
+                if (s->command != 0) {
+                    warn_report("\x1b[31m[OCT PSRAM] Unsupported command 0x%04x \x1b[0m\n", value);
+                }
+#endif
+                s->state = ST_IDLE;
+            }
+            break;
+        case ST_CMD_READY:
+            /* Received the (valid) command */
+            s->addr = value;
+            s->state = ST_CMD_ADDR0;
+            break;
+        case ST_CMD_ADDR0:
+            s->addr = (s->addr << 8) | value;
+            s->state = ST_CMD_ADDR1;
+            break;
+        case ST_CMD_ADDR1:
+            s->addr = (s->addr << 8) | value;
+            s->state = ST_CMD_ADDR2;
+            break;
+        case ST_CMD_ADDR2:
+            s->addr = (s->addr << 8) | value;
+            /* Address was received, process data */
+            s->state = ST_PROCESSING;
+            break;
+        case ST_PROCESSING:
+            if (s->command == OCT_WRITE_REG) {
+                switch (s->addr) {
+                case 0:
+                    s->mr0 = value;
+                    break;
+                case 4:
+                    s->mr4 = value;
+                    break;
+                case 8:
+                    s->mr8 = value;
+                    break;
+                }
+            }
+            s->byte_count++;
+            break;
 
-    // save the write command to the corresponding register
-    if (s->byte_count == 7 && s->command == CMD_WRITE_OCTAL_REG) {
-        switch (s->addr)
-        {
-        case 0:
-            s->mr0 = value;
-            break;
-        case 4:
-            s->mr4 = value;
-            break;
-        case 8:
-            s->mr8 = value;
-            break;
         default:
-            // Should not happen
             break;
-        }
     }
 }
+
+
+static int psram_octal_get_density(uint32_t size_mbytes)
+{
+    int density = 0;
+
+    /* These density values were taken from ESP-IDF Octal PSRAM driver */
+    switch (size_mbytes) {
+    case 4:
+        density = 1;
+        break;
+    case 8:
+        density = 3;
+        break;
+    case 16:
+        density = 5;
+        break;
+    case 32:
+        density = 7;
+        break;
+    case 64:
+        density = 6;
+        break;
+    default:
+        error_report("[PSRAM] Invalid size %dMB for octal PSRAM\n", size_mbytes);
+        break;
+    }
+
+    return density & MR2_DENSITY_MASK;
+}
+
 
 static uint32_t psram_transfer(SSIPeripheral *dev, uint32_t value)
 {
@@ -182,6 +279,7 @@ static int psram_cs(SSIPeripheral *ss, bool select)
     SsiPsramState *s = SSI_PSRAM(ss);
 
     if (!select) {
+        s->state = ST_IDLE;
         s->byte_count = 0;
         s->command = -1;
         s->addr = -1;
@@ -192,32 +290,29 @@ static int psram_cs(SSIPeripheral *ss, bool select)
 static void psram_realize(SSIPeripheral *ss, Error **errp)
 {
     SsiPsramState *s = SSI_PSRAM(ss);
-    /* Make sure the given size is supported */
-    if (get_eid_by_size(s->size_mbytes) == -1) {
-        error_report("[PSRAM] Invalid size %dMB for the PSRAM", s->size_mbytes);
-    }
-
-    /* Set the default MR values for the octal psram (ref: Datasheet APS6408L_OBMx) */
-    s->mr0 = MR0_RD_LT_VARIABLE | MR0_RD_LATENCY_CODE | MR0_DRIVE_STRENGHT_HALF;
-    s->mr1 = MR1_NO_ULP | MR1_VENDOR_ID;
-    s->mr2 = MR2_GOOD_DIE_BIT_PASS | MR2_DEVICE_ID_3_GEN | MR2_DENSITY_MAPPING_64MB;   
-    s->mr3 = MR3_RBX_NOT_SUPPORTED | MR3_OP_VOLTAGE_1V8 | MR3_SRF_FAST_REFRESH;
-    s->mr4 = MR4_WRITE_LATENCY_5 | MR4_FAST_REFRESH | MR4_PASR_64MB;
-    s->mr8 = MR8_RBX_READ_DISABLE | MR8_HYBRID_BURST | MR8_32BYTE_BURST;
 
     if (s->is_octal) {
-        s->dummy = 3;
+        /* Set the default MR values for the octal psram (ref: Datasheet APS6408L_OBMx) */
+        s->mr0 = MR0_RD_LT_VARIABLE | MR0_RD_LATENCY_CODE | MR0_DRIVE_STRENGHT_HALF;
+        s->mr1 = MR1_NO_ULP | MR1_VENDOR_ID;
+        s->mr2 = MR2_GOOD_DIE_BIT_PASS | MR2_DEVICE_ID_3_GEN | psram_octal_get_density(s->size_mbytes);
+        s->mr3 = MR3_RBX_NOT_SUPPORTED | MR3_OP_VOLTAGE_1V8 | MR3_SRF_FAST_REFRESH;
+        s->mr4 = MR4_WRITE_LATENCY_5 | MR4_FAST_REFRESH | MR4_PASR_64MB;
+        s->mr8 = MR8_RBX_READ_DISABLE | MR8_HYBRID_BURST | MR8_32BYTE_BURST;
+    } else if (get_eid_by_size(s->size_mbytes) == -1) {
+        error_report("[PSRAM] Invalid size %dMB for QUAD PSRAM", s->size_mbytes);
     }
 
     /* Allocate the actual array that will act as a vritual RAM */
     const uint32_t size_bytes = s->size_mbytes * 1024 * 1024;
     memory_region_init_ram(&s->data_mr, OBJECT(s), "psram.memory_region", size_bytes, &error_fatal);
+
+    s->state = ST_IDLE;
 }
 
 static Property psram_properties[] = {
     DEFINE_PROP_BOOL("is_octal", SsiPsramState, is_octal, false),
     DEFINE_PROP_UINT32("size_mbytes", SsiPsramState, size_mbytes, 4),
-    DEFINE_PROP_UINT32("dummy", SsiPsramState, dummy, 1),
     DEFINE_PROP_END_OF_LIST(),
 };
 

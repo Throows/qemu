@@ -6,6 +6,18 @@
 #include "qom/object.h"
 #include "exec/memory.h"
 
+
+typedef enum PsramState {
+    ST_IDLE = 0,
+    ST_CMD_LSB,     /* Received the command LSB */
+    ST_CMD_READY,   /* Received the command */
+    ST_CMD_ADDR0,   /* Received the 1st byte of the 32-bit address */
+    ST_CMD_ADDR1,   /* Received the 2nd byte of the 32-bit address */
+    ST_CMD_ADDR2,   /* Received the 3rd byte of the 32-bit address */
+    ST_PROCESSING,  /* 32-bit address received, sending/receiving data */
+} PsramState;
+
+
 typedef struct SsiPsramState {
     SSIPeripheral parent_obj;
     uint32_t size_mbytes;
@@ -22,6 +34,7 @@ typedef struct SsiPsramState {
     uint8_t mr4;
     uint8_t mr8;
 
+    PsramState state;
     MemoryRegion data_mr;
 } SsiPsramState;
 

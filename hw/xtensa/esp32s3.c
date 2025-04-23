@@ -57,7 +57,7 @@
 #include "hw/misc/esp32s3_rsa.h"
 #include "hw/misc/esp32s3_hmac.h"
 #include "hw/misc/esp32s3_ds.h"
-#include "hw/timer/esp32c3_timg.h"
+#include "hw/timer/esp32s3_timg.h"
 #include "hw/timer/esp32s3_systimer.h"
 #include "hw/gpio/esp32s3_gpio.h"
 #include "hw/misc/esp32s3_xts_aes.h"
@@ -142,7 +142,7 @@ typedef struct Esp32s3SocState {
     ESP32S3PmsState pms;
 
     ESP32S3XtsAesState xts_aes;
-    ESP32C3TimgState timg[2];
+    ESP32S3TimgState timg[2];
     ESP32S3SysTimerState systimer;
 
     ESP32C3UsbJtagState jtag;
@@ -614,8 +614,8 @@ static void esp32s3_machine_init(MachineState *machine)
     object_initialize_child(OBJECT(ss), "pms", &ss->pms, TYPE_ESP32S3_PMS);
 
     object_initialize_child(OBJECT(ss), "xts_aes", &ss->xts_aes, TYPE_ESP32S3_XTS_AES);
-    object_initialize_child(OBJECT(ss), "timg0", &ss->timg[0], TYPE_ESP32C3_TIMG);
-    object_initialize_child(OBJECT(ss), "timg1", &ss->timg[1], TYPE_ESP32C3_TIMG);
+    object_initialize_child(OBJECT(ss), "timg0", &ss->timg[0], TYPE_ESP32S3_TIMG);
+    object_initialize_child(OBJECT(ss), "timg1", &ss->timg[1], TYPE_ESP32S3_TIMG);
     object_initialize_child(OBJECT(ss), "systimer", &ss->systimer, TYPE_ESP32S3_SYSTIMER);
     object_initialize_child(OBJECT(ss), "rgb", &ss->rgb, TYPE_ESP_RGB);
 
@@ -693,10 +693,13 @@ static void esp32s3_machine_init(MachineState *machine)
         MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->timg[0]), 0);
         memory_region_add_subregion_overlap(sys_mem, DR_REG_TIMERGROUP0_BASE, mr, 0);
         /* Connect the T0 interrupt line to the interrupt matrix */
-        qdev_connect_gpio_out_named(DEVICE(&ss->timg[0]), ESP32C3_T0_IRQ_INTERRUPT, 0,
+        qdev_connect_gpio_out_named(DEVICE(&ss->timg[0]), ESP32S3_T0_IRQ_INTERRUPT, 0,
                                     qdev_get_gpio_in(intmatrix_dev, ETS_TG0_T0_LEVEL_INTR_SOURCE));
+        /* Connect the T1 interrupt line to the interrupt matrix */
+        qdev_connect_gpio_out_named(DEVICE(&ss->timg[0]), ESP32S3_T1_IRQ_INTERRUPT, 0,
+                                    qdev_get_gpio_in(intmatrix_dev, ETS_TG0_T1_LEVEL_INTR_SOURCE));
         /* Connect the Watchdog interrupt line to the interrupt matrix */
-        qdev_connect_gpio_out_named(DEVICE(&ss->timg[0]), ESP32C3_WDT_IRQ_INTERRUPT, 0,
+        qdev_connect_gpio_out_named(DEVICE(&ss->timg[0]), ESP32S3_WDT_IRQ_INTERRUPT, 0,
                                     qdev_get_gpio_in(intmatrix_dev, ETS_TG0_WDT_LEVEL_INTR_SOURCE));
     }
     {
@@ -704,9 +707,13 @@ static void esp32s3_machine_init(MachineState *machine)
         MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->timg[1]), 0);
         memory_region_add_subregion_overlap(sys_mem, DR_REG_TIMERGROUP1_BASE, mr, 0);
         /* Connect the T0 interrupt line to the interrupt matrix */
-        qdev_connect_gpio_out_named(DEVICE(&ss->timg[1]), ESP32C3_T0_IRQ_INTERRUPT, 0,
+        qdev_connect_gpio_out_named(DEVICE(&ss->timg[1]), ESP32S3_T0_IRQ_INTERRUPT, 0,
                                     qdev_get_gpio_in(intmatrix_dev, ETS_TG1_T0_LEVEL_INTR_SOURCE));
-        qdev_connect_gpio_out_named(DEVICE(&ss->timg[1]), ESP32C3_WDT_IRQ_INTERRUPT, 0,
+        /* Connect the T1 interrupt line to the interrupt matrix */
+        qdev_connect_gpio_out_named(DEVICE(&ss->timg[1]), ESP32S3_T1_IRQ_INTERRUPT, 0,
+                                    qdev_get_gpio_in(intmatrix_dev, ETS_TG1_T1_LEVEL_INTR_SOURCE));
+        /* Connect the Watchdog interrupt line to the interrupt matrix */
+        qdev_connect_gpio_out_named(DEVICE(&ss->timg[1]), ESP32S3_WDT_IRQ_INTERRUPT, 0,
                                     qdev_get_gpio_in(intmatrix_dev, ETS_TG1_WDT_LEVEL_INTR_SOURCE));
     }
 

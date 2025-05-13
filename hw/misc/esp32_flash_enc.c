@@ -7,7 +7,7 @@
  * it under the terms of the GNU General Public License version 2 or
  * (at your option) any later version.
  */
-
+#include <gcrypt.h>
 #include "qemu/osdep.h"
 #include "hw/hw.h"
 #include "hw/sysbus.h"
@@ -114,7 +114,7 @@ static void esp32_flash_encryption_key_tweak(struct Esp32FlashEncryptionState *s
     }
 }
 
-static void reverse_key_byte_order(const uint32_t* src, uint32_t* dst)
+static inline void reverse_key_byte_order(const uint32_t* src, uint32_t* dst)
 {
     assert( src != dst );
     for (size_t i = 0; i < FLASH_ENCRYPTION_KEY_WORDS; ++i) {
@@ -122,7 +122,7 @@ static void reverse_key_byte_order(const uint32_t* src, uint32_t* dst)
     }
 }
 
-static void reverse_data_byte_order(const uint32_t* src, uint32_t* dst)
+static inline void reverse_data_byte_order(const uint32_t* src, uint32_t* dst)
 {
     assert( src != dst );
     for (size_t i = 0; i < FLASH_ENCRYPTION_DATA_WORDS; ++i) {
@@ -165,6 +165,27 @@ void esp32_flash_decrypt_inplace(struct Esp32FlashEncryptionState* s, size_t fla
     uint32_t decrypted_data[FLASH_ENCRYPTION_DATA_WORDS];
 
     reverse_key_byte_order(s->efuse_key, reversed_key);
+#ifdef CONFIG_GCRYPT
+    gcry_cipher_hd_t cipher;
+    gcry_error_t err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_ECB, 0);
+    if (err != GPG_ERR_NO_ERROR) {
+        fprintf(stderr, "Error initializing cipher: %s\n", gcry_strerror(err));
+        return;
+    }
+
+    for (size_t pos = 0; pos < words; pos += FLASH_ENCRYPTION_DATA_WORDS) {
+        uint32_t offset = flash_addr + pos * 4;
+        esp32_flash_encryption_key_tweak(s, offset, reversed_key, tweaked_key);
+        gcry_cipher_setkey(cipher, tweaked_key, FLASH_ENCRYPTION_KEY_WORDS * 4);
+        reverse_data_byte_order(data + pos, reversed_data);
+        gcry_cipher_encrypt(cipher, decrypted_data, sizeof(decrypted_data), reversed_data, sizeof(reversed_data));
+        reverse_data_byte_order(decrypted_data, data + pos);
+    }
+
+    gcry_cipher_close(cipher);
+#else
+    #pragma message "NOTE: Using GCRYPT is highly recommended for better performance with flash encryption"
+
     for (size_t pos = 0; pos < words; pos += FLASH_ENCRYPTION_DATA_WORDS) {
         uint32_t offset = flash_addr + pos * 4;
         esp32_flash_encryption_key_tweak(s, offset, reversed_key, tweaked_key);
@@ -174,6 +195,7 @@ void esp32_flash_decrypt_inplace(struct Esp32FlashEncryptionState* s, size_t fla
         reverse_data_byte_order(decrypted_data, data + pos);
         qcrypto_cipher_free(cipher);
     }
+#endif
 }
 
 static void esp32_flash_encryption_on_dl_mode_change(void *opaque, int n,
